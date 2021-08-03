@@ -14,7 +14,7 @@ class KittiRawLoader(object):
                  get_gt=False):
         dir_path = Path(__file__).realpath().dirname()
         test_scene_file = dir_path/'test_scenes.txt'
-
+        print("tsf", test_scene_file)
         self.from_speed = static_frames_file is None
         if static_frames_file is not None:
             static_frames_file = Path(static_frames_file)
@@ -27,7 +27,7 @@ class KittiRawLoader(object):
         self.img_height = img_height
         self.img_width = img_width
         self.cam_ids = ['02', '03']
-        self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', '2011_09_30', '2011_10_03']
+        self.date_list = ['2011_10_03']
         self.min_speed = min_speed
         self.get_gt = get_gt
         self.collect_train_folders()
@@ -64,6 +64,7 @@ class KittiRawLoader(object):
                 scene_data['speed'].append(speed)
                 scene_data['frame_id'].append('{:010d}'.format(n))
             sample = self.load_image(scene_data, 0)
+
             if sample is None:
                 return []
             scene_data['P_rect'] = self.get_P_rect(scene_data, sample[1], sample[2])
@@ -112,6 +113,7 @@ class KittiRawLoader(object):
         zoom_y = self.img_height/img.shape[0]
         zoom_x = self.img_width/img.shape[1]
         img = scipy.misc.imresize(img, (self.img_height, self.img_width))
+	img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         return img, zoom_x, zoom_y
 
     def read_raw_calib_file(self, filepath):

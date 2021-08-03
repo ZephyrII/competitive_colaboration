@@ -1,6 +1,7 @@
 import torch.utils.data as data
 import numpy as np
 from scipy.misc import imread
+import cv2
 from path import Path
 import random
 
@@ -24,7 +25,7 @@ def crawl_folders(folders_list, sequence_length):
 
 
 def load_as_float(path):
-    return imread(path).astype(np.float32)
+    return cv2.imread(path).astype(np.float32)
 
 
 class SequenceFolder(data.Dataset):

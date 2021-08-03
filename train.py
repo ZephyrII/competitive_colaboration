@@ -8,7 +8,7 @@ import time
 import csv
 import datetime
 import os
-
+import cv2
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -16,6 +16,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.nn as nn
 import torch.utils.data
+import torchvision
 import custom_transforms
 import models
 from utils import tensor2array, save_checkpoint
@@ -170,6 +171,7 @@ def main():
 
     if args.fix_flownet:
         train_transform = custom_transforms.Compose([
+#            torchvision.transforms.Grayscale(num_output_channels=3),
             custom_transforms.RandomHorizontalFlip(),
             custom_transforms.RandomScaleCrop(),
             custom_transforms.ArrayToTensor(),
@@ -177,6 +179,7 @@ def main():
         ])
     else:
         train_transform = custom_transforms.Compose([
+ #           torchvision.transforms.Grayscale(num_output_channels=3),
             custom_transforms.RandomRotate(),
             custom_transforms.RandomHorizontalFlip(),
             custom_transforms.RandomScaleCrop(),

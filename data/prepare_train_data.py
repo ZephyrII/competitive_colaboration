@@ -71,7 +71,7 @@ def main():
                                         img_height=args.height,
                                         img_width=args.width)
 
-    print('Retrieving frames')
+    print('Retrieving frames', data_loader.scenes)
     Parallel(n_jobs=args.num_threads)(delayed(dump_example)(scene) for scene in tqdm(data_loader.scenes))
     # Split into train/val
     print('Generating train val lists')
