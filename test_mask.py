@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import cv2
 from tqdm import tqdm
 import numpy as np
 from path import Path
@@ -35,7 +36,7 @@ parser.add_argument('--masknet', dest='masknet', type=str, default='MaskNet6', c
 parser.add_argument('--flownet', dest='flownet', type=str, default='Back2Future', choices=['FlowNetS', 'Back2Future', 'FlowNetC5','FlowNetC6', 'SpyNet'],
                     help='flow network architecture.')
 
-parser.add_argument('--THRESH', dest='THRESH', type=float, default=0.94, help='THRESH')
+parser.add_argument('--THRESH', dest='THRESH', type=float, default=0.96, help='THRESH')
 
 parser.add_argument('--pretrained-disp', dest='pretrained_disp', default=None, metavar='PATH', help='path to pre-trained dispnet model')
 parser.add_argument('--pretrained-pose', dest='pretrained_pose', default=None, metavar='PATH', help='path to pre-trained posenet model')
@@ -65,16 +66,16 @@ def main():
         mask_dir = args.output_dir/'mask'
         viz_dir = args.output_dir/'viz'
 
-        image_dir.makedirs_p()
-        gt_dir.makedirs_p()
-        mask_dir.makedirs_p()
-        viz_dir.makedirs_p()
+        # image_dir.makedirs_p()
+        # gt_dir.makedirs_p()
+        # mask_dir.makedirs_p()
+        # viz_dir.makedirs_p()
 
         output_writer = SummaryWriter(args.output_dir)
 
     normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
                                             std=[0.5, 0.5, 0.5])
-    flow_loader_h, flow_loader_w = 256, 832
+    flow_loader_h, flow_loader_w = 512, 1024
     valid_flow_transform = custom_transforms.Compose([custom_transforms.Scale(h=flow_loader_h, w=flow_loader_w),
                             custom_transforms.ArrayToTensor(), normalize])
     val_flow_set = ValidationMask(root=args.kitti_dir,
@@ -107,14 +108,14 @@ def main():
     errors_census = AverageMeter(i=len(error_names))
     errors_bare = AverageMeter(i=len(error_names))
 
-    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv, flow_gt, obj_map_gt, semantic_map_gt) in enumerate(tqdm(val_loader)):
+    # for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv, flow_gt, obj_map_gt, semantic_map_gt) in enumerate(tqdm(val_loader)):
+    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in enumerate(val_loader):
         tgt_img_var = Variable(tgt_img.cuda(), volatile=True)
         ref_imgs_var = [Variable(img.cuda(), volatile=True) for img in ref_imgs]
         intrinsics_var = Variable(intrinsics.cuda(), volatile=True)
         intrinsics_inv_var = Variable(intrinsics_inv.cuda(), volatile=True)
-
-        flow_gt_var = Variable(flow_gt.cuda(), volatile=True)
-        obj_map_gt_var = Variable(obj_map_gt.cuda(), volatile=True)
+        # flow_gt_var = Variable(flow_gt.cuda(), volatile=True)
+        # obj_map_gt_var = Variable(obj_map_gt.cuda(), volatile=True)
 
         disp = disp_net(tgt_img_var)
         depth = 1/disp
@@ -122,8 +123,8 @@ def main():
         explainability_mask = mask_net(tgt_img_var, ref_imgs_var)
         if args.flownet in ['Back2Future']:
             flow_fwd, flow_bwd, _ = flow_net(tgt_img_var, ref_imgs_var[1:3])
-        else:
-            flow_fwd = flow_net(tgt_img_var, ref_imgs_var[2])
+        # else:
+        #     flow_fwd = flow_net(tgt_img_var, ref_imgs_var[2])
         flow_cam = pose2flow(depth.squeeze(1), pose[:,2], intrinsics_var, intrinsics_inv_var)
 
         rigidity_mask = 1 - (1-explainability_mask[:,1])*(1-explainability_mask[:,2]).unsqueeze(1) > 0.5
@@ -137,88 +138,93 @@ def main():
         flow_fwd_rigid = rigidity_mask_combined.type_as(flow_fwd).expand_as(flow_fwd) * flow_cam
         total_flow = flow_fwd_rigid + flow_fwd_non_rigid
 
-        obj_map_gt_var_expanded = obj_map_gt_var.unsqueeze(1).type_as(flow_fwd)
+        # obj_map_gt_var_expanded = obj_map_gt_var.unsqueeze(1).type_as(flow_fwd)
 
-        tgt_img_np = tgt_img[0].numpy()
+        # tgt_img_np = tgt_img[0].numpy()
         rigidity_mask_combined_np = rigidity_mask_combined.cpu().data[0].numpy()
         rigidity_mask_census_np = rigidity_mask_census.cpu().data[0].numpy()
         rigidity_mask_bare_np = rigidity_mask.cpu().data[0].numpy()
 
-        gt_mask_np = obj_map_gt[0].numpy()
-        semantic_map_np = semantic_map_gt[0].numpy()
+        # gt_mask_np = obj_map_gt[0].numpy()
+        # semantic_map_np = semantic_map_gt[0].numpy()
 
-        _errors = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_combined_np[0])
-        _errors_census = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_census_np[0])
-        _errors_bare = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_bare_np[0])
+        # _errors = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_combined_np[0])
+        # _errors_census = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_census_np[0])
+        # _errors_bare = mask_error(gt_mask_np, semantic_map_np, rigidity_mask_bare_np[0])
 
-        errors.update(_errors)
-        errors_census.update(_errors_census)
-        errors_bare.update(_errors_bare)
-
-        if args.output_dir is not None:
-            np.save(image_dir/str(i).zfill(3), tgt_img_np )
-            np.save(gt_dir/str(i).zfill(3), gt_mask_np)
-            np.save(mask_dir/str(i).zfill(3), rigidity_mask_combined_np)
-
-
-
-        if (args.output_dir is not None) and i%10==0:
-            ind = int(i//10)
-            output_writer.add_image('val Dispnet Output Normalized', tensor2array(disp.data[0].cpu(), max_value=None, colormap='bone'), ind)
-            output_writer.add_image('val Input', tensor2array(tgt_img[0].cpu()), i)
-            output_writer.add_image('val Total Flow Output', flow_to_image(tensor2array(total_flow.data[0].cpu())), ind)
-            output_writer.add_image('val Rigid Flow Output', flow_to_image(tensor2array(flow_fwd_rigid.data[0].cpu())), ind)
-            output_writer.add_image('val Non-rigid Flow Output', flow_to_image(tensor2array(flow_fwd_non_rigid.data[0].cpu())), ind)
-            output_writer.add_image('val Rigidity Mask', tensor2array(rigidity_mask.data[0].cpu(), max_value=1, colormap='bone'), ind)
-            output_writer.add_image('val Rigidity Mask Census', tensor2array(rigidity_mask_census.data[0].cpu(), max_value=1, colormap='bone'), ind)
-            output_writer.add_image('val Rigidity Mask Combined', tensor2array(rigidity_mask_combined.data[0].cpu(), max_value=1, colormap='bone'), ind)
+        # errors.update(_errors)
+        # errors_census.update(_errors_census)
+        # errors_bare.update(_errors_bare)
 
         if args.output_dir is not None:
-            tgt_img_viz = tensor2array(tgt_img[0].cpu())
-            depth_viz = tensor2array(disp.data[0].cpu(), max_value=None, colormap='hot')
-            mask_viz = tensor2array(rigidity_mask_census_soft.data[0].cpu(), max_value=1, colormap='bone')
-            row2_viz = flow_to_image(np.hstack((tensor2array(flow_cam.data[0].cpu()),
-                                    tensor2array(flow_fwd_non_rigid.data[0].cpu()),
-                                    tensor2array(total_flow.data[0].cpu()) )) )
-
-            row1_viz = np.hstack((tgt_img_viz, depth_viz, mask_viz))
-            viz3 = np.vstack((255*tgt_img_viz, 255*depth_viz, 255*mask_viz,
-                        flow_to_image(np.vstack((tensor2array(flow_fwd_non_rigid.data[0].cpu()),
-                                    tensor2array(total_flow.data[0].cpu()))))))
-
-            row1_viz_im = Image.fromarray((255*row1_viz).astype('uint8'))
-            row2_viz_im = Image.fromarray((row2_viz).astype('uint8'))
-            viz3_im = Image.fromarray(viz3.astype('uint8'))
-
-            row1_viz_im.save(viz_dir/str(i).zfill(3)+'01.png')
-            row2_viz_im.save(viz_dir/str(i).zfill(3)+'02.png')
-            viz3_im.save(viz_dir/str(i).zfill(3)+'03.png')
+            # np.save(image_dir/str(i).zfill(3), tgt_img_np )
+            # np.save(gt_dir/str(i).zfill(3), gt_mask_np)
+            rigidity_mask_bare_np = rigidity_mask_census_np.astype(np.uint8)*255
+            rigidity_mask_bare_np = rigidity_mask_bare_np.transpose([1,2,0])
+            fpath = args.output_dir+str(i)+".jpg"
+            print(fpath)
+            cv2.imwrite(fpath, rigidity_mask_bare_np)
+            # np.save(mask_dir/str(i).zfill(3), rigidity_mask_bare_np)
 
 
 
-    bg_iou = errors.sum[0] / (errors.sum[0] + errors.sum[1] + errors.sum[2]  )
-    fg_iou = errors.sum[3] / (errors.sum[3] + errors.sum[4] + errors.sum[5]  )
-    avg_iou = (bg_iou + fg_iou)/2
+    #     if (args.output_dir is not None) and i%10==0:
+    #         ind = int(i//10)
+    #         output_writer.add_image('val Dispnet Output Normalized', tensor2array(disp.data[0].cpu(), max_value=None, colormap='bone'), ind)
+    #         output_writer.add_image('val Input', tensor2array(tgt_img[0].cpu()), i)
+    #         output_writer.add_image('val Total Flow Output', flow_to_image(tensor2array(total_flow.data[0].cpu())), ind)
+    #         output_writer.add_image('val Rigid Flow Output', flow_to_image(tensor2array(flow_fwd_rigid.data[0].cpu())), ind)
+    #         output_writer.add_image('val Non-rigid Flow Output', flow_to_image(tensor2array(flow_fwd_non_rigid.data[0].cpu())), ind)
+    #         output_writer.add_image('val Rigidity Mask', tensor2array(rigidity_mask.data[0].cpu(), max_value=1, colormap='bone'), ind)
+    #         output_writer.add_image('val Rigidity Mask Census', tensor2array(rigidity_mask_census.data[0].cpu(), max_value=1, colormap='bone'), ind)
+    #         output_writer.add_image('val Rigidity Mask Combined', tensor2array(rigidity_mask_combined.data[0].cpu(), max_value=1, colormap='bone'), ind)
 
-    bg_iou_census = errors_census.sum[0] / (errors_census.sum[0] + errors_census.sum[1] + errors_census.sum[2]  )
-    fg_iou_census = errors_census.sum[3] / (errors_census.sum[3] + errors_census.sum[4] + errors_census.sum[5]  )
-    avg_iou_census = (bg_iou_census + fg_iou_census)/2
+    #     if args.output_dir is not None:
+    #         tgt_img_viz = tensor2array(tgt_img[0].cpu())
+    #         depth_viz = tensor2array(disp.data[0].cpu(), max_value=None, colormap='hot')
+    #         mask_viz = tensor2array(rigidity_mask_census_soft.data[0].cpu(), max_value=1, colormap='bone')
+    #         row2_viz = flow_to_image(np.hstack((tensor2array(flow_cam.data[0].cpu()),
+    #                                 tensor2array(flow_fwd_non_rigid.data[0].cpu()),
+    #                                 tensor2array(total_flow.data[0].cpu()) )) )
 
-    bg_iou_bare = errors_bare.sum[0] / (errors_bare.sum[0] + errors_bare.sum[1] + errors_bare.sum[2]  )
-    fg_iou_bare = errors_bare.sum[3] / (errors_bare.sum[3] + errors_bare.sum[4] + errors_bare.sum[5]  )
-    avg_iou_bare = (bg_iou_bare + fg_iou_bare)/2
+    #         row1_viz = np.hstack((tgt_img_viz, depth_viz, mask_viz))
+    #         viz3 = np.vstack((255*tgt_img_viz, 255*depth_viz, 255*mask_viz,
+    #                     flow_to_image(np.vstack((tensor2array(flow_fwd_non_rigid.data[0].cpu()),
+    #                                 tensor2array(total_flow.data[0].cpu()))))))
 
-    print("Results Full Model")
-    print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
-    print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou, bg_iou, fg_iou))
+    #         row1_viz_im = Image.fromarray((255*row1_viz).astype('uint8'))
+    #         row2_viz_im = Image.fromarray((row2_viz).astype('uint8'))
+    #         viz3_im = Image.fromarray(viz3.astype('uint8'))
 
-    print("Results Census only")
-    print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
-    print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou_census, bg_iou_census, fg_iou_census))
+    #         row1_viz_im.save(viz_dir/str(i).zfill(3)+'01.png')
+    #         row2_viz_im.save(viz_dir/str(i).zfill(3)+'02.png')
+    #         viz3_im.save(viz_dir/str(i).zfill(3)+'03.png')
 
-    print("Results Bare")
-    print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
-    print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou_bare, bg_iou_bare, fg_iou_bare))
+
+
+    # bg_iou = errors.sum[0] / (errors.sum[0] + errors.sum[1] + errors.sum[2]  )
+    # fg_iou = errors.sum[3] / (errors.sum[3] + errors.sum[4] + errors.sum[5]  )
+    # avg_iou = (bg_iou + fg_iou)/2
+
+    # bg_iou_census = errors_census.sum[0] / (errors_census.sum[0] + errors_census.sum[1] + errors_census.sum[2]  )
+    # fg_iou_census = errors_census.sum[3] / (errors_census.sum[3] + errors_census.sum[4] + errors_census.sum[5]  )
+    # avg_iou_census = (bg_iou_census + fg_iou_census)/2
+
+    # bg_iou_bare = errors_bare.sum[0] / (errors_bare.sum[0] + errors_bare.sum[1] + errors_bare.sum[2]  )
+    # fg_iou_bare = errors_bare.sum[3] / (errors_bare.sum[3] + errors_bare.sum[4] + errors_bare.sum[5]  )
+    # avg_iou_bare = (bg_iou_bare + fg_iou_bare)/2
+
+    # print("Results Full Model")
+    # print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
+    # print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou, bg_iou, fg_iou))
+
+    # print("Results Census only")
+    # print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
+    # print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou_census, bg_iou_census, fg_iou_census))
+
+    # print("Results Bare")
+    # print("\t {:>10}, {:>10}, {:>10} ".format('iou', 'bg_iou', 'fg_iou'))
+    # print("Errors \t {:10.4f}, {:10.4f} {:10.4f}".format(avg_iou_bare, bg_iou_bare, fg_iou_bare))
 
 
 def mask_error(mot_gt, seg_gt, pred):

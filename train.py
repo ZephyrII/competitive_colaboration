@@ -389,12 +389,13 @@ def main():
         elif not args.fix_flownet:
             decisive_error = flow_errors[-1]    #epe_non_rigid_with_gt_mask
         elif not args.fix_masknet:
-            decisive_error = flow_errors[3]     # percent outliers
+            decisive_error = 0 #flow_errors[3]     # percent outliers
         if best_error < 0:
             best_error = decisive_error
 
         # remember lowest error and save checkpoint
         is_best = decisive_error <= best_error
+        is_best = True
         best_error = min(best_error, decisive_error)
         save_checkpoint(
             args.save_path, {

@@ -12,6 +12,7 @@ from flowutils import flow_io
 import torch
 import os
 from skimage import transform as sktransform
+import cv2
 
 def crawl_folders(folders_list):
         imgs = []
@@ -29,7 +30,8 @@ def crawl_folders(folders_list):
 
 
 def load_as_float(path):
-    return imread(path).astype(np.float32)
+    return cv2.imread(path)#.astype(np.float32)
+    # return imread(path).astype(np.float32)
 
 def get_intrinsics(calib_file, cid='02'):
     #print(zoom_x, zoom_y)
@@ -145,7 +147,7 @@ class ValidationMask(data.Dataset):
         transform functions must take in a list a images and a numpy array which can be None
     """
 
-    def __init__(self, root, sequence_length, transform=None, N=200, phase='training'):
+    def __init__(self, root, sequence_length, transform=None, N=20000, phase='training'):
         self.root = Path(root)
         self.sequence_length = sequence_length
         self.N = N
@@ -156,30 +158,34 @@ class ValidationMask(data.Dataset):
         self.seq_ids = [x+10 for x in seq_ids]
 
     def __getitem__(self, index):
-        tgt_img_path =  self.root.joinpath('data_scene_flow_multiview', self.phase, 'image_2',str(index).zfill(6)+'_10.png')
-        ref_img_paths = [self.root.joinpath('data_scene_flow_multiview', self.phase, 'image_2',str(index).zfill(6)+'_'+str(k).zfill(2)+'.png') for k in self.seq_ids]
-        gt_flow_path = self.root.joinpath('data_scene_flow', self.phase, 'flow_occ', str(index).zfill(6)+'_10.png')
-        cam_calib_path = self.root.joinpath('data_scene_flow_calib', self.phase, 'calib_cam_to_cam', str(index).zfill(6)+'.txt')
-        obj_map_path = self.root.joinpath('data_scene_flow', self.phase, 'obj_map', str(index).zfill(6)+'_10.png')
-        semantic_map_path = self.root.joinpath('semantic_labels', self.phase, 'semantic', str(index).zfill(6)+'_10.png')
+        # tgt_img_path =  self.root.joinpath('data_scene_flow_multiview', self.phase, 'image_2',str(index).zfill(6)+'_10.png')
+        # ref_img_paths = [self.root.joinpath('data_scene_flow_multiview', self.phase, 'image_2',str(index).zfill(6)+'_'+str(k).zfill(2)+'.png') for k in self.seq_ids]
+        tgt_img_path =  self.root.joinpath(str(index).zfill(8)+'_10.png')
+        ref_img_paths = [self.root.joinpath(str(index).zfill(8)+'_'+str(k).zfill(2)+'.png') for k in self.seq_ids]
+        # gt_flow_path = self.root.joinpath('data_scene_flow', self.phase, 'flow_occ', str(index).zfill(6)+'_10.png')
+        # cam_calib_path = self.root.joinpath('data_scene_flow_calib', self.phase, 'calib_cam_to_cam', str(index).zfill(6)+'.txt')
+        # obj_map_path = self.root.joinpath('data_scene_flow', self.phase, 'obj_map', str(index).zfill(6)+'_10.png')
+        # semantic_map_path = self.root.joinpath('semantic_labels', self.phase, 'semantic', str(index).zfill(6)+'_10.png')
 
         tgt_img = load_as_float(tgt_img_path)
         ref_imgs = [load_as_float(ref_img) for ref_img in ref_img_paths]
-        obj_map = torch.LongTensor(np.array(Image.open(obj_map_path)))
-        semantic_map = torch.LongTensor(np.array(Image.open(semantic_map_path)))
-        u,v,valid = flow_io.flow_read_png(gt_flow_path)
-        gtFlow = np.dstack((u,v,valid))
-        #gtFlow = scale_flow(np.dstack((u,v,valid)), h=self.flow_h, w=self.flow_w)
-        gtFlow = torch.FloatTensor(gtFlow.transpose(2,0,1))
-        intrinsics = get_intrinsics(cam_calib_path).astype('float32')
+        # obj_map = torch.LongTensor(np.array(Image.open(obj_map_path)))
+        # semantic_map = torch.LongTensor(np.array(Image.open(semantic_map_path)))
+        # u,v,valid = flow_io.flow_read_png(gt_flow_path)
+        # gtFlow = np.dstack((u,v,valid))
+        # #gtFlow = scale_flow(np.dstack((u,v,valid)), h=self.flow_h, w=self.flow_w)
+        # gtFlow = torch.FloatTensor(gtFlow.transpose(2,0,1))
+        # intrinsics = get_intrinsics(cam_calib_path).astype('float32')
 
+        intrinsics = np.array([[510, 0, 512],[0,510, 256], [0,0,1]]).astype('float32')
         if self.transform is not None:
             imgs, intrinsics = self.transform([tgt_img] + ref_imgs, np.copy(intrinsics))
             tgt_img = imgs[0]
             ref_imgs = imgs[1:]
         else:
             intrinsics = np.copy(intrinsics)
-        return tgt_img, ref_imgs, intrinsics, np.linalg.inv(intrinsics), gtFlow, obj_map, semantic_map
+        # return tgt_img, ref_imgs, intrinsics, np.linalg.inv(intrinsics), gtFlow, obj_map, semantic_map
+        return tgt_img, ref_imgs, intrinsics, np.linalg.inv(intrinsics)
 
     def __len__(self):
         return self.N
