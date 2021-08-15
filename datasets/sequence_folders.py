@@ -11,7 +11,8 @@ def crawl_folders(folders_list, sequence_length):
         demi_length = (sequence_length-1)//2
         for folder in folders_list:
             intrinsics = np.genfromtxt(folder/'cam.txt', delimiter=',').astype(np.float32).reshape((3, 3))
-            imgs = sorted(folder.files('*.jpg'))
+#            print("int", intrinsics)
+            imgs = sorted(folder.files('*.png'))
             if len(imgs) < sequence_length:
                 continue
             for i in range(demi_length, len(imgs)-demi_length):

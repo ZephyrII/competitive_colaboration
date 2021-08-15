@@ -161,7 +161,7 @@ def main():
             output_writers.append(SummaryWriter(args.save_path/'valid'/str(i)))
 
     # Data loading code
-    flow_loader_h, flow_loader_w = 256, 832
+    flow_loader_h, flow_loader_w = 512, 1024
 
     if args.data_normalization =='global':
         normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
@@ -174,6 +174,7 @@ def main():
 #            torchvision.transforms.Grayscale(num_output_channels=3),
             custom_transforms.RandomHorizontalFlip(),
             custom_transforms.RandomScaleCrop(),
+#            custom_transforms.Blur(),
             custom_transforms.ArrayToTensor(),
             normalize
         ])
@@ -183,6 +184,7 @@ def main():
             custom_transforms.RandomRotate(),
             custom_transforms.RandomHorizontalFlip(),
             custom_transforms.RandomScaleCrop(),
+#            custom_transforms.Blur(),
             custom_transforms.ArrayToTensor(),
             normalize
         ])
@@ -383,11 +385,11 @@ def main():
         # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
 
         if not args.fix_posenet:
-            decisive_error = flow_errors[-2]    # epe_rigid_with_gt_mask
+            decisive_error = 0    # epe_rigid_with_gt_mask
         elif not args.fix_dispnet:
-            decisive_error = errors[0]      #depth abs_diff
+            decisive_error = 0      #depth abs_diff
         elif not args.fix_flownet:
-            decisive_error = flow_errors[-1]    #epe_non_rigid_with_gt_mask
+            decisive_error = 0    #epe_non_rigid_with_gt_mask
         elif not args.fix_masknet:
             decisive_error = 0 #flow_errors[3]     # percent outliers
         if best_error < 0:

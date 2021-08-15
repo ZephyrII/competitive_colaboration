@@ -78,7 +78,7 @@ def main():
     flow_loader_h, flow_loader_w = 512, 1024
     valid_flow_transform = custom_transforms.Compose([custom_transforms.Scale(h=flow_loader_h, w=flow_loader_w),
                                                       custom_transforms.Blur(),
-                                                      custom_transforms.ArrayToTensor()]) #, normalize])
+                                                      custom_transforms.ArrayToTensor(), normalize])
     val_flow_set = ValidationMask(root=args.kitti_dir,
                                 sequence_length=5, transform=valid_flow_transform)
 
@@ -128,7 +128,7 @@ def main():
         #     flow_fwd = flow_net(tgt_img_var, ref_imgs_var[2])
         flow_cam = pose2flow(depth.squeeze(1), pose[:,2], intrinsics_var, intrinsics_inv_var)
 
-        rigidity_mask = 1 - (1-explainability_mask[:,1])*(1-explainability_mask[:,2]).unsqueeze(1) > 0.999
+        rigidity_mask = 1 - (1-explainability_mask[:,1])*(1-explainability_mask[:,2]).unsqueeze(1) > 0.5
         rigidity_mask_census_soft = (flow_cam - flow_fwd).pow(2).sum(dim=1).unsqueeze(1).sqrt()#.normalize()
         rigidity_mask_census_soft = 1 - rigidity_mask_census_soft/rigidity_mask_census_soft.max()
         rigidity_mask_census = rigidity_mask_census_soft > args.THRESH
@@ -164,13 +164,13 @@ def main():
 #            kernel = np.ones((ks,ks),np.uint8)
 #            kernel[[0,ks-1], [0,ks-1]] = 0
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(ks, ks))
-            img = rigidity_mask_bare_np.astype(np.uint8)*255
+            img = rigidity_mask_combined_np.astype(np.uint8)*255
             img = img.transpose([1,2,0])
 
 #            img = cv2.dilate(img,kernel,iterations = 1)
 #            img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones((1,1), np.uint8))
 
-            img = cv2.dilate(img,kernel,iterations = 11)
+#            img = cv2.dilate(img,kernel,iterations = 11)
 
             fpath = args.output_dir+str(i+2)+".jpg"
             print(fpath)

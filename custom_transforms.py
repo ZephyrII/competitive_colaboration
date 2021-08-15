@@ -3,6 +3,7 @@ import torch
 import random
 import numpy as np
 from scipy.misc import imresize, imrotate
+import cv2
 
 '''Set of tranform random routines that takes list of inputs as arguments,
 in order to have random but coherent transformations.'''
@@ -85,7 +86,11 @@ class RandomRotate(object):
 
             return rotated_images, intrinsics
 
+class Blur(object):
+    def __call__(self, images, intrinsics):
+        blured_images = [cv2.medianBlur(im, 15) for im in images]
 
+        return blured_images, intrinsics
 
 
 class RandomScaleCrop(object):

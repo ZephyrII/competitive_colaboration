@@ -4,9 +4,10 @@ from collections import deque
 import shutil
 
 SEQ_LEN = 5
-ROOT_DIR = "/root/share/tf/dataset/os1_64_intensity/"
-INPUT_DIR = "os1_64_2/"
-OUTPUT_DIR = "os1_64_2_inference/"
+#ROOT_DIR = "/root/share/tf/dataset/os1_64_intensity/"
+ROOT_DIR = "/root/share/tf/dataset/kitti_0_intensity"
+INPUT_DIR = "5/"
+OUTPUT_DIR = "5_inference/"
 try:
     os.mkdir(opj(ROOT_DIR, OUTPUT_DIR))
 except FileExistsError:

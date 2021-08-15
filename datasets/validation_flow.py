@@ -30,7 +30,7 @@ def crawl_folders(folders_list):
 
 
 def load_as_float(path):
-    return cv2.imread(path)#.astype(np.float32)
+    return cv2.imread(path)
     # return imread(path).astype(np.float32)
 
 def get_intrinsics(calib_file, cid='02'):
